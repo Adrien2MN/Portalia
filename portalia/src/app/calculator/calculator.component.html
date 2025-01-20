@@ -1,0 +1,60 @@
+<div class="calculator-container">
+  <h1>Salary Calculator</h1>
+
+  <!-- Dropdown for Calculation Type -->
+  <label for="calculationType">Select Calculation Type:</label>
+  <select id="calculationType" [(ngModel)]="parameters.calculationType">
+    <option value="TJM">TJM</option>
+    <option value="NET">NET</option>
+    <option value="BRUT">BRUT</option>
+  </select>
+
+  <!-- Dropdown for Contract Type -->
+  <label for="contractType">Contract Type:</label>
+  <select id="contractType" [(ngModel)]="parameters.contractType">
+    <option value="CDI">CDI</option>
+    <option value="CDD">CDD</option>
+  </select>
+
+  <!-- Input Fields for Parameters -->
+  <div>
+    <label>Frais de Gestion (%):</label>
+    <input type="number" [(ngModel)]="parameters.fraisGestion" />
+
+    <label>Provisions (%):</label>
+    <input type="number" [(ngModel)]="parameters.provisions" />
+
+    <label>Jours Travaillés:</label>
+    <input type="number" [(ngModel)]="parameters.joursTravailles" />
+  </div>
+
+  <!-- Ticket Restaurant Option -->
+  <div>
+    <label>
+      <input type="checkbox" [(ngModel)]="parameters.ticketRestaurant" />
+      Ticket Restaurant
+    </label>
+  </div>
+
+  <!-- Display Selected Options -->
+  <div>
+    <h3>Selected Options:</h3>
+    <p>Calculation Type: {{ parameters.calculationType }}</p>
+    <p>Contract Type: {{ parameters.contractType }}</p>
+    <p>Frais de Gestion: {{ parameters.fraisGestion }}%</p>
+    <p>Provisions: {{ parameters.provisions }}%</p>
+    <p>Jours Travaillés: {{ parameters.joursTravailles }}</p>
+    <p>Ticket Restaurant: {{ parameters.ticketRestaurant ? 'Yes' : 'No' }}</p>
+  </div>
+
+  <!-- Submit Button -->
+  <button (click)="calculate()">Calculate</button>
+
+  <!-- Results -->
+  <div *ngIf="result">
+    <h2>Results:</h2>
+    <p>TJM: {{ result.tjm }}</p>
+    <p>BRUT: {{ result.brut }}</p>
+    <p>NET: {{ result.net }}</p>
+  </div>
+</div>
