@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-calculator',
@@ -9,24 +10,52 @@ import { Component } from '@angular/core';
 export class CalculatorComponent {
   // Parameters for the form
   parameters = {
-    calculationType: 'TJM', // Default: TJM
-    contractType: 'CDI', // Default: CDI
-    fraisGestion: 8, // Default frais de gestion
-    provisions: 10, // Default provisions
-    joursTravailles: 18, // Default jours travaillés
-    ticketRestaurant: false // Default: no ticket restaurant
+    calculationType: 'TJM', // Default calculation type
+    tjm: 0,
+    brut: 0,
+    net: 0,
+    joursTravailles: 18, // Default: 18 days
+    fraisGestion: 8, // Default: 8%
+    provisions: 10, // Default: 10%
+    ticketRestaurant: false,
+    contractType: 'CDI'
   };
 
   // Result object
   result: any = null;
+  
+  constructor(private http: HttpClient) {}
 
-  // Method to handle calculations
+  // Call the backend API
   calculate() {
-    // Mock API call (replace this with an actual backend call later)
-    this.result = {
-      tjm: this.parameters.calculationType === 'TJM' ? 500 : null,
-      brut: this.parameters.calculationType === 'BRUT' ? 7380 : null,
-      net: this.parameters.calculationType === 'NET' ? 4870 : null
+    const queryParams: { [key: string]: string } = {
+      tjm: this.parameters.tjm !== null ? this.parameters.tjm.toString() : '',
+      brut: this.parameters.brut !== null ? this.parameters.brut.toString() : '',
+      net: this.parameters.net !== null ? this.parameters.net.toString() : '',
+      jours: this.parameters.joursTravailles.toString(),
+      frais_fixes: (this.parameters.fraisGestion / 100).toString(),
+      provisions: (this.parameters.provisions / 100).toString(),
+      charges_sal: '0.22', // Default charges
+      charges_pat: '0.12'  // Default charges
     };
+
+    // Filter out empty parameters (if you still want to exclude unset values)
+  const filteredQueryParams = Object.fromEntries(
+    Object.entries(queryParams).filter(([_, value]) => value !== '')
+  );
+
+  const queryString = new URLSearchParams(filteredQueryParams).toString();
+  const apiUrl = `http://127.0.0.1:8000/convert?${queryString}`;
+
+  this.http.get(apiUrl).subscribe(
+    (response) => {
+      this.result = response; // Store the result
+    },
+    (error) => {
+      console.error('Error calling backend API:', error);
+      alert('An error occurred while contacting the server. Please try again.');
+    }
+  );
+
   }
 }
