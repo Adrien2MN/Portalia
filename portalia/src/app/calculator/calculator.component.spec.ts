@@ -22,6 +22,4 @@ describe('CalculatorComponent', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
-  
-  // Add more tests as needed
 });

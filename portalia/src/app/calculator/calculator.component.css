@@ -103,7 +103,7 @@ button:active {
 }
 
 /* Results section styling */
-div[*ngIf="result"] {
+.results-section {
   background-color: var(--secondary-color);
   border-radius: var(--border-radius);
   padding: 20px;
