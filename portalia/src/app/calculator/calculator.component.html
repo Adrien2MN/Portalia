@@ -1,79 +1,81 @@
 <div class="calculator-container">
-  <h1>Simulez votre salaire</h1>
-  <p class="subtitle">Estimez votre rémunération en fonction de vos paramètres</p>
-  
+  <h1>Simulateur de Salaire</h1>
+
+  <!-- Calculation Type Section -->
   <div class="form-section">
-    <label for="calculationType">Type de calcul:</label>
-    <select id="calculationType" [(ngModel)]="parameters.calculationType" class="form-control">
-      <option value="TJM">TJM (Taux Journalier Moyen)</option>
-      <option value="NET">Salaire NET</option>
-      <option value="BRUT">Salaire BRUT</option>
+    <label for="calculationType">Type de Calcul :</label>
+    <select id="calculationType" [(ngModel)]="parameters.calculationType">
+      <option value="TJM">Taux Journalier Moyen (TJM)</option>
+      <option value="BRUT">Salaire Brut</option>
+      <option value="NET">Salaire Net</option>
     </select>
   </div>
-  
-  <div class="form-row">
-    <div class="form-col" *ngIf="parameters.calculationType === 'TJM'">
-      <label for="tjm">TJM (€):</label>
-      <input id="tjm" type="number" [(ngModel)]="parameters.tjm" class="form-control" />
+
+  <!-- Input Fields -->
+  <div class="form-section">
+    <div *ngIf="parameters.calculationType === 'TJM'">
+      <label for="tjm">Taux Journalier Moyen (€) :</label>
+      <input id="tjm" type="number" [(ngModel)]="parameters.tjm" placeholder="Ex: 450" />
     </div>
-    
-    <div class="form-col" *ngIf="parameters.calculationType === 'BRUT'">
-      <label for="brut">Salaire BRUT (€):</label>
-      <input id="brut" type="number" [(ngModel)]="parameters.brut" class="form-control" />
+    <div *ngIf="parameters.calculationType === 'BRUT'">
+      <label for="brut">Salaire Brut Annuel (€) :</label>
+      <input id="brut" type="number" [(ngModel)]="parameters.brut" placeholder="Ex: 60000" />
     </div>
-    
-    <div class="form-col" *ngIf="parameters.calculationType === 'NET'">
-      <label for="net">Salaire NET (€):</label>
-      <input id="net" type="number" [(ngModel)]="parameters.net" class="form-control" />
-    </div>
-    
-    <div class="form-col">
-      <label for="joursTravailles">Jours Travaillés par mois:</label>
-      <input id="joursTravailles" type="number" [(ngModel)]="parameters.joursTravailles" class="form-control" />
+    <div *ngIf="parameters.calculationType === 'NET'">
+      <label for="net">Salaire Net Annuel (€) :</label>
+      <input id="net" type="number" [(ngModel)]="parameters.net" placeholder="Ex: 45000" />
     </div>
   </div>
-  
-  <div class="form-row">
-    <div class="form-col">
-      <label for="fraisGestion">Frais de Gestion (%):</label>
-      <input id="fraisGestion" type="number" [(ngModel)]="parameters.fraisGestion" class="form-control" />
+
+  <!-- Parameters Section -->
+  <div class="form-section">
+    <h3>Paramètres</h3>
+    
+    <div class="form-row">
+      <div class="form-group">
+        <label>Jours Travaillés par Mois :</label>
+        <input type="number" [(ngModel)]="parameters.joursTravailles" placeholder="Ex: 18" />
+      </div>
+      
+      <div class="form-group">
+        <label>Frais de Gestion (%) :</label>
+        <input type="number" [(ngModel)]="parameters.fraisGestion" placeholder="Ex: 8" />
+      </div>
     </div>
     
-    <div class="form-col">
-      <label for="provisions">Provisions (%):</label>
-      <input id="provisions" type="number" [(ngModel)]="parameters.provisions" class="form-control" />
+    <div class="form-row">
+      <div class="form-group">
+        <label>Provisions (%) :</label>
+        <input type="number" [(ngModel)]="parameters.provisions" placeholder="Ex: 10" />
+      </div>
     </div>
   </div>
-  
-  <button (click)="calculate()" class="calculate-btn">Simuler mon salaire</button>
-  
-  <div *ngIf="errorMessage" class="error-message">
-    {{ errorMessage }}
-  </div>
-  
+
+  <!-- Calculate Button -->
+  <button (click)="calculate()">Calculer mon salaire</button>
+
+  <!-- Results Section -->
   <div *ngIf="result" class="results-section">
-    <h2>Résultats de votre simulation</h2>
+    <h2>Résultats de la Simulation</h2>
     
-    <div class="results-grid">
-      <div class="result-item">
-        <div class="result-label">TJM</div>
-        <div class="result-value">{{ result.tjm }} €</div>
-      </div>
-      
-      <div class="result-item">
-        <div class="result-label">Salaire BRUT annuel</div>
-        <div class="result-value">{{ result.brut }} €</div>
-      </div>
-      
-      <div class="result-item">
-        <div class="result-label">Salaire NET annuel</div>
-        <div class="result-value">{{ result.net }} €</div>
-      </div>
+    <div class="result-item">
+      <span class="result-label">TJM :</span>
+      <span class="result-value">{{ result.tjm }} € / jour</span>
     </div>
     
-    <div class="details-box">
-      <div class="details-title">Détails du calcul</div>
-      <div class="details-text">Ces calculs sont basés sur un nombre de <strong>{{ parameters.joursTravailles }}</strong> jours travaillés par mois, avec <strong>{{ parameters.fraisGestion }}%</strong> de frais de gestion et <strong>{{ parameters.provisions }}%</strong> de provisions.</div>
+    <div class="result-item">
+      <span class="result-label">Salaire Brut Annuel :</span>
+      <span class="result-value">{{ result.brut }} €</span>
+    </div>
+    
+    <div class="result-item">
+      <span class="result-label">Salaire Net Annuel :</span>
+      <span class="result-value">{{ result.net }} €</span>
+    </div>
+    
+    <div class="result-item">
+      <span class="result-label">Salaire Net Mensuel :</span>
+      <span class="result-value">{{ result.net / 12 | number:'1.0-2' }} €</span>
     </div>
   </div>
 </div>
