@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-calculator',
+  standalone: false,  // Explicitly set to false
   templateUrl: './calculator.component.html',
   styleUrls: ['./calculator.component.css']
 })
