@@ -28,33 +28,14 @@ export class CalculatorComponent {
 
   // Call the backend API
   calculate() {
-    const queryParams: { [key: string]: string } = {
-      tjm: this.parameters.tjm !== null ? this.parameters.tjm.toString() : '',
-      brut: this.parameters.brut !== null ? this.parameters.brut.toString() : '',
-      net: this.parameters.net !== null ? this.parameters.net.toString() : '',
-      jours: this.parameters.joursTravailles.toString(),
-      frais_fixes: (this.parameters.fraisGestion / 100).toString(),
-      provisions: (this.parameters.provisions / 100).toString(),
-      charges_sal: '0.22', // Default charges
-      charges_pat: '0.12'  // Default charges
-    };
-
-    // Filter out empty parameters
-    const filteredQueryParams = Object.fromEntries(
-      Object.entries(queryParams).filter(([_, value]) => value !== '')
-    );
-
-    const queryString = new URLSearchParams(filteredQueryParams).toString();
-    const apiUrl = `http://127.0.0.1:8000/convert?${queryString}`;
-
-    this.http.get(apiUrl).subscribe(
-      (response) => {
-        this.result = response; // Store the result
+    this.http.post('http://127.0.0.1:8000/calculate', this.parameters).subscribe(
+      (response: any) => {
+        this.result = response;
       },
       (error) => {
-        console.error('Error calling backend API:', error);
-        alert('An error occurred while contacting the server. Please try again.');
+        console.error('Erreur API:', error);
       }
     );
   }
+  
 }
