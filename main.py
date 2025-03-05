@@ -1,23 +1,12 @@
-<<<<<<< HEAD
-from fastapi import FastAPI, HTTPException
-=======
 from fastapi import FastAPI, HTTPException, Query
->>>>>>> 6200b1d685331b086cec1974d0e620e6a0a2acbc
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import tempfile
 import shutil
 from typing import Optional
-<<<<<<< HEAD
-import xlwings as xw
-import logging
-
-# Set up logging
-=======
 import logging
 
 # Configure logging
->>>>>>> 6200b1d685331b086cec1974d0e620e6a0a2acbc
 logging.basicConfig(level=logging.INFO, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -33,13 +22,8 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-<<<<<<< HEAD
-# Path to the Excel template - using the new XLSM file
-EXCEL_TEMPLATE_PATH = "PORTALIA MC2 CONSULTANTS 2024 V03-24.xlsm"
-=======
 # Path to the Excel template
 EXCEL_TEMPLATE_PATH = "PORTALIA MC2 CONSULTANTS 2024 V0324.xlsm"
->>>>>>> 6200b1d685331b086cec1974d0e620e6a0a2acbc
 
 @app.get("/")
 def read_root():
@@ -53,22 +37,6 @@ def str_to_bool(value: str) -> bool:
 
 @app.get("/convert")
 async def convert(
-<<<<<<< HEAD
-    tjm: Optional[float] = None,
-    jours_travailles: Optional[int] = None,
-    contract_type: Optional[str] = None,
-    frais_fonctionnement: Optional[float] = None,
-    ticket_restaurant: Optional[bool] = None,
-    mutuelle: Optional[bool] = None,
-    code_commune: Optional[str] = None
-):
-    # Check if we have the required parameters
-    if tjm is None or jours_travailles is None:
-        raise HTTPException(status_code=400, detail="TJM and jours_travailles are required")
-    
-    try:
-        logger.info(f"Starting calculation with TJM={tjm}, jours={jours_travailles}")
-=======
     tjm: Optional[float] = Query(None),
     jours_travailles: Optional[int] = Query(None),
     contract_type: Optional[str] = Query(None),
@@ -108,7 +76,6 @@ async def convert(
     
     try:
         logger.info(f"Starting Excel calculation with TJM={tjm}, jours={jours_travailles}")
->>>>>>> 6200b1d685331b086cec1974d0e620e6a0a2acbc
         
         # Create a temporary copy of the template
         temp_dir = tempfile.mkdtemp()
@@ -121,20 +88,6 @@ async def convert(
         app_excel = xw.App(visible=False)
         wb = app_excel.books.open(temp_excel_path)
         
-<<<<<<< HEAD
-        # Try to get the correct sheet name
-        sheet_names = [sheet.name for sheet in wb.sheets]
-        logger.info(f"Available sheets: {sheet_names}")
-        
-        # Look for the sheet that most likely contains calculation with provisions
-        calculation_sheet = "1. Calcul Avec prov"
-        logger.info(f"Using calculation sheet: {calculation_sheet}")
-        ws = wb.sheets[calculation_sheet]
-        
-        # Fill in the data
-        # You may need to adjust cell references based on the actual XLSM structure
-        try:
-=======
         try:
             # Try to get the correct sheet name
             sheet_names = [sheet.name for sheet in wb.sheets]
@@ -147,7 +100,6 @@ async def convert(
             ws = wb.sheets["1. Calcul Avec prov"]
             
             # Fill in the data
->>>>>>> 6200b1d685331b086cec1974d0e620e6a0a2acbc
             ws.range("J4").value = tjm
             logger.info(f"Set TJM to {tjm}")
             
@@ -172,11 +124,7 @@ async def convert(
                 logger.info(f"Set frais de fonctionnement to {frais_fonctionnement}")
             
             # Handle ticket restaurant
-<<<<<<< HEAD
-            if ticket_restaurant:
-=======
             if ticket_restaurant_bool:
->>>>>>> 6200b1d685331b086cec1974d0e620e6a0a2acbc
                 ws.range("J21").value = 198
                 logger.info("Enabled ticket restaurant")
             else:
@@ -184,11 +132,7 @@ async def convert(
                 logger.info("Disabled ticket restaurant")
             
             # Handle mutuelle
-<<<<<<< HEAD
-            if mutuelle:
-=======
             if mutuelle_bool:
->>>>>>> 6200b1d685331b086cec1974d0e620e6a0a2acbc
                 ws.range("J17").value = "Oui"
                 logger.info("Enabled mutuelle")
             else:
@@ -199,90 +143,6 @@ async def convert(
             if code_commune:
                 ws.range("J25").value = code_commune
                 logger.info(f"Set code commune to {code_commune}")
-<<<<<<< HEAD
-        
-        except Exception as e:
-            logger.error(f"Error setting values: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error setting Excel values: {str(e)}")
-        
-        # Find available macros
-        try:
-            macro_names = [m.name for m in wb.macro("ThisWorkbook").module.procedures]
-            logger.info(f"Available macros: {macro_names}")
-        except Exception as e:
-            logger.warning(f"Could not retrieve macro names: {str(e)}")
-            macro_names = []
-        
-        # Run the macro to update Template 3 if available
-        update_macro_name = None
-        for macro_name in macro_names:
-            if "update" in macro_name.lower() and "template" in macro_name.lower():
-                update_macro_name = macro_name
-                break
-        
-        if update_macro_name:
-            try:
-                logger.info(f"Running macro: {update_macro_name}")
-                wb.macro(update_macro_name)()
-            except Exception as e:
-                logger.error(f"Macro execution error: {str(e)}")
-                # Continue even if macro fails
-        else:
-            logger.warning("No update template macro found. Calculations may not be complete.")
-        
-        # Find the template sheet
-        template_sheet = None
-        for sheet_name in sheet_names:
-            if "template" in sheet_name.lower():
-                template_sheet = sheet_name
-                break
-        
-        if not template_sheet:
-            template_sheet = sheet_names[-1]  # Use last sheet as fallback
-        
-        logger.info(f"Using template sheet: {template_sheet}")
-        template3 = wb.sheets[template_sheet]
-        
-        # Try to locate the result cells - this may need adjustment
-        # Log cell values for debugging
-        cell_values = {}
-        for row in range(5, 20):
-            for col in ['B', 'C']:
-                cell_ref = f"{col}{row}"
-                cell_values[cell_ref] = template3.range(cell_ref).value
-        
-        logger.info(f"Cell values: {cell_values}")
-        
-        # Assuming the important results are in these cells (adjust as needed)
-        result = {
-            "tjm": tjm,
-            "brut_mensuel": template3.range("C10").value,
-            "net_mensuel": template3.range("C12").value,
-            "frais_gestion": template3.range("C14").value,
-            "autres_details": {
-                "ticket_restaurant_contribution": template3.range("C16").value if ticket_restaurant else 0,
-                "mutuelle_contribution": template3.range("C18").value if mutuelle else 0,
-            }
-        }
-        
-        logger.info(f"Calculation result: {result}")
-        
-        # Save and close the Excel file
-        wb.save()
-        wb.close()
-        app_excel.quit()
-        
-        # Clean up temporary files
-        shutil.rmtree(temp_dir)
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"Excel processing error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Excel processing error: {str(e)}")
-
-# Keep the old convert endpoint for backward compatibility
-=======
                 
             # Find available macros
             
@@ -386,29 +246,11 @@ async def convert(
         raise HTTPException(status_code=500, detail=error_msg)
 
 # Keep the old endpoint for backward compatibility
->>>>>>> 6200b1d685331b086cec1974d0e620e6a0a2acbc
 @app.get("/old_convert")
 def old_convert(
     tjm: float = None, brut: float = None, net: float = None, 
     jours: int = 18, frais_fixes: float = 0.08, provisions: float = 0.10, 
     charges_sal: float = 0.22, charges_pat: float = 0.12
 ):
-<<<<<<< HEAD
-    if tjm:
-        brut = 198 + (tjm * jours * (1 - frais_fixes - provisions))
-        net = brut * (1 - charges_sal - charges_pat)
-    elif brut:
-        tjm = (brut - 198) / (jours * (1 - frais_fixes - provisions))
-        net = brut * (1 - charges_sal - charges_pat)
-    elif net:
-        brut = net / (1 - charges_sal - charges_pat)
-        tjm = (brut - 198) / (jours * (1 - frais_fixes - provisions))
-    return {
-    "tjm": round(tjm, 2) if tjm else None,
-    "brut": round(brut, 2) if brut else None,
-    "net": round(net, 2) if net else None
-}
-=======
     # Redirect to the new endpoint with appropriate parameters
     return {"message": "This endpoint is deprecated. Please use /convert instead."}
->>>>>>> 6200b1d685331b086cec1974d0e620e6a0a2acbc
