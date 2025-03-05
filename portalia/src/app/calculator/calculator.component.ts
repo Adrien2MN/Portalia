@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 
 interface CalculationResult {
   tjm: number;
@@ -30,6 +30,9 @@ export class CalculatorComponent implements OnInit {
     codeCommune: ''
   };
 
+  // Backend API URL
+  private apiUrl = 'http://127.0.0.1:8000/convert';
+  
   // Result object
   result: CalculationResult | null = null;
   isLoading: boolean = false;
@@ -87,42 +90,56 @@ export class CalculatorComponent implements OnInit {
     this.errorMessage = null;
     this.isLoading = true;
     
-    const queryParams: { [key: string]: string } = {
-      tjm: this.parameters.tjm.toString(),
-      jours_travailles: this.parameters.joursTravailles.toString(),
-      contract_type: this.parameters.contractType,
-      frais_fonctionnement: (this.parameters.fraisFonctionnement / 100).toString(),
-      ticket_restaurant: this.parameters.ticketRestaurant.toString(),
-      mutuelle: this.parameters.mutuelle.toString(),
-      code_commune: this.parameters.codeCommune
-    };
+    // Use HttpParams for better query parameter handling
+    let params = new HttpParams()
+      .set('tjm', this.parameters.tjm.toString())
+      .set('jours_travailles', this.parameters.joursTravailles.toString())
+      .set('contract_type', this.parameters.contractType)
+      .set('frais_fonctionnement', (this.parameters.fraisFonctionnement / 100).toString());
+    
+    // Only add optional parameters if they have values
+    if (this.parameters.ticketRestaurant) {
+      params = params.set('ticket_restaurant', 'true');
+    } else {
+      params = params.set('ticket_restaurant', 'false');
+    }
+    
+    if (this.parameters.mutuelle) {
+      params = params.set('mutuelle', 'true');
+    } else {
+      params = params.set('mutuelle', 'false'); 
+    }
+    
+    if (this.parameters.codeCommune) {
+      params = params.set('code_commune', this.parameters.codeCommune);
+    }
+    
+    // Log the URL that will be called for debugging
+    const fullUrl = `${this.apiUrl}?${params.toString()}`;
+    console.log('Calling API URL:', fullUrl);
 
-    // Create the query string
-    const queryString = new URLSearchParams(queryParams).toString();
-    const apiUrl = `http://127.0.0.1:8000/convert?${queryString}`;
-
-    this.http.get<CalculationResult>(apiUrl).subscribe({
+    // Make the HTTP request with properly formatted params
+    this.http.get<CalculationResult>(this.apiUrl, { params }).subscribe({
       next: (response: CalculationResult) => {
-        this.result = response; // Store the result
+        this.result = response;
         this.isLoading = false;
         console.log('Calculation result:', this.result);
-        
-        // Handle null or undefined values
-        if (!this.result) {
-          this.errorMessage = "Le calcul n'a pas généré de résultats valides.";
-        } else if (!this.result.brut_mensuel && !this.result.net_mensuel) {
-          this.errorMessage = "Les résultats de salaire sont incomplets ou invalides.";
-        }
       },
       error: (error: HttpErrorResponse) => {
         this.isLoading = false;
-        this.errorMessage = "Une erreur s'est produite lors de la communication avec le serveur. Veuillez réessayer.";
-        console.error('Error calling backend API:', error);
         
-        // Include error details in the error message if available
+        // Create a user-friendly error message
         if (error.error && error.error.detail) {
-          this.errorMessage += ` Détail: ${error.error.detail}`;
+          if (error.error.detail.includes("Excel")) {
+            this.errorMessage = "Une erreur s'est produite lors de la communication avec Excel. Détail: " + error.error.detail;
+          } else {
+            this.errorMessage = "Une erreur s'est produite lors de la communication avec le serveur. Détail: " + error.error.detail;
+          }
+        } else {
+          this.errorMessage = "Une erreur s'est produite lors de la communication avec le serveur. Veuillez réessayer.";
         }
+        
+        console.error('Error calling backend API:', error);
       }
     });
   }
