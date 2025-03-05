@@ -10,27 +10,32 @@
     <label for="joursTravailles">Nombre de Jours Travaillés:</label>
     <input id="joursTravailles" type="number" [(ngModel)]="parameters.joursTravailles" required min="1" max="30" />
   </div>
+  
   <!-- Contract Type Selection -->
   <label for="contractType">Type de Contrat:</label>
   <select id="contractType" [(ngModel)]="parameters.contractType">
     <option value="CDI">CDI</option>
     <option value="CDD">CDD</option>
   </select>
+  
   <!-- Frais de Fonctionnement -->
   <div>
     <label for="fraisFonctionnement">Frais de Fonctionnement (%):</label>
     <input id="fraisFonctionnement" type="number" [(ngModel)]="parameters.fraisFonctionnement" min="0" max="100" />
   </div>
+  
   <!-- Ticket Restaurant -->
   <div class="checkbox-container">
     <label for="ticketRestaurant">Ticket Restaurant:</label>
     <input id="ticketRestaurant" type="checkbox" [(ngModel)]="parameters.ticketRestaurant" />
   </div>
+  
   <!-- Mutuelle -->
   <div class="checkbox-container">
     <label for="mutuelle">Mutuelle:</label>
     <input id="mutuelle" type="checkbox" [(ngModel)]="parameters.mutuelle" />
   </div>
+  
   <!-- Code Commune -->
   <div>
     <label for="codeCommune">Code Commune:</label>
@@ -61,7 +66,7 @@
   <!-- Loading Indicator -->
   <div *ngIf="isLoading" class="loading-spinner">
     <div class="spinner"></div>
-    <p>Traitement en cours...</p>
+    <p>Traitement Excel en cours...</p>
   </div>
   
   <!-- Results -->
