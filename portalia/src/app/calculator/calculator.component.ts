@@ -77,8 +77,8 @@ export class CalculatorComponent implements OnInit {
   // Call the backend API
   calculate(): void {
     // Validate inputs before making API call
-    if (this.parameters.tjm <= 0) {
-      this.errorMessage = "Le taux journalier doit être supérieur à 290.";
+    if (this.parameters.tjm < 290) {
+      this.errorMessage = "Le taux journalier doit être supérieur à 289.";
       return;
     }
     

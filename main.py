@@ -150,8 +150,8 @@ async def convert(
             
             # Handle frais de fonctionnement
             if frais_fonctionnement is not None:
-                ws.range("J12").value = frais_fonctionnement
-                logger.info(f"Set frais de fonctionnement to {frais_fonctionnement} in cell J12")
+                ws.range("J12").value = frais_fonctionnement*100
+                logger.info(f"Set frais de fonctionnement to {frais_fonctionnement*100} in cell J12")
             
             # Handle ticket restaurant
             if ticket_restaurant_bool:
