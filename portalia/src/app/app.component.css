@@ -103,13 +103,7 @@
   }
   
   /* Results section styling */
-  div[*ngIf="result"] {
-    background-color: var(--secondary-color);
-    border-radius: var(--border-radius);
-    padding: 20px;
-    margin-top: 30px;
-  }
-  
+
   p {
     display: flex;
     justify-content: space-between;

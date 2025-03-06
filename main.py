@@ -91,41 +91,7 @@ async def convert(
         error_msg = "xlwings module not installed. Please install it with: pip install xlwings"
         logger.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)
-    '''
-    try:
-        logger.info(f"Starting Excel processing with TJM={tjm}, jours={jours_travailles}")
-        
-        # Create a temporary copy of the template
-        temp_dir = tempfile.mkdtemp()
-        temp_excel_path = os.path.join(temp_dir, "temp_calculation.xlsm")
-        shutil.copy2(EXCEL_TEMPLATE_PATH, temp_excel_path)
-        logger.info(f"Copied template to {temp_excel_path}")
-        
-        # Open the Excel file with xlwings - with additional settings to avoid problems
-        xw.App.config['visible'] = False
-        xw.App.config['add_book'] = False
-        app_excel = xw.App(visible=False, add_book=False)
-        app_excel.display_alerts = False
-        app_excel.screen_updating = False
-        
-        # Try to open with specified path
-        try:
-            logger.info(f"Attempting to open Excel file: {temp_excel_path}")
-            wb = app_excel.books.open(temp_excel_path)
-            logger.info("Excel file opened successfully")
-        except Exception as e:
-            logger.error(f"Error opening Excel file: {e}")
-            # Try absolute path as alternative
-            try:
-                abs_path = os.path.abspath(temp_excel_path)
-                logger.info(f"Attempting with absolute path: {abs_path}")
-                wb = app_excel.books.open(abs_path)
-                logger.info("Excel file opened successfully with absolute path")
-            except Exception as e2:
-                logger.error(f"Error opening Excel with absolute path: {e2}")
-                raise HTTPException(status_code=500, 
-                                   detail=f"Could not open Excel file: {str(e)}. Tried absolute path: {str(e2)}")
-        '''
+
     try:
         logger.info(f"Starting Excel processing with TJM={tjm}, jours={jours_travailles}")
         
@@ -156,27 +122,7 @@ async def convert(
             logger.info(f"Excel sheets: {sheet_names}")
             
             # Look for the calculation sheet - try multiple possible names
-            calculation_sheet_name = None
-            possible_calc_sheets = ["1. Calcul Avec prov", "1. Calcul Avec Prov", "Calcul Avec prov", "Calcul"]
-            
-            for sheet_name in possible_calc_sheets:
-                if sheet_name in sheet_names:
-                    calculation_sheet_name = sheet_name
-                    logger.info(f"Found calculation sheet: {calculation_sheet_name}")
-                    break
-            
-            if not calculation_sheet_name:
-                # Try fuzzy matching
-                for sheet_name in sheet_names:
-                    if "calcul" in sheet_name.lower() and "prov" in sheet_name.lower():
-                        calculation_sheet_name = sheet_name
-                        logger.info(f"Found calculation sheet via fuzzy match: {calculation_sheet_name}")
-                        break
-            
-            if not calculation_sheet_name:
-                # If still not found, default to first sheet
-                calculation_sheet_name = sheet_names[0]
-                logger.warning(f"Could not find specific calculation sheet, using first sheet: {calculation_sheet_name}")
+            calculation_sheet_name = "1. Calcul Avec prov"
             
             # Access the calculation sheet
             ws = wb.sheets[calculation_sheet_name]
@@ -192,15 +138,14 @@ async def convert(
             
             # Handle contract type
             if contract_type == "CDI":
-                ws.range("J8").value = "2%"
-                # Use valeur_j9 if provided, otherwise default to "A négocier"
-                ws.range("J9").value = valeur_j9 if valeur_j9 else "A négocier"
-                ws.range("J10").value = "0%"
-                logger.info(f"Set contract type to CDI with J9={ws.range('J9').value}")
+                ws.range("J8").value = 0.02
+                ws.range("J9").value = 0.1
+                ws.range("J10").value = 0
+                logger.info(f"Set contract type to CDI")
             elif contract_type == "CDD":
-                ws.range("J8").value = "0%"
-                ws.range("J9").value = "0%"
-                ws.range("J10").value = "10%"
+                ws.range("J8").value = 0
+                ws.range("J9").value = 0
+                ws.range("J10").value = 0.1
                 logger.info("Set contract type to CDD")
             
             # Handle frais de fonctionnement
@@ -234,36 +179,50 @@ async def convert(
                     
                     # Récupérer tous les codes commune de la colonne A
                     try:
-                        # Obtenir la plage utilisée de la colonne A
+                        # Obtenir la plage utilisée
                         used_range = transport_sheet.used_range
                         last_row = used_range.last_cell.row
                         codes_list = []
                         
-                        # Lire tous les codes communes dans la colonne A
-                        for row in range(1, last_row + 1):
+                        # Logging pour débogage
+                        logger.info(f"Analyse de la feuille {transport_sheet_name} jusqu'à la ligne {last_row}")
+                        
+                        # Lire tous les codes communes et les normaliser pour la comparaison
+                        #for row in range(2, last_row + 1): 
+                        for row in range(2, 100): # Commencer à la ligne 2 pour éviter l'en-tête
                             cell_value = transport_sheet.range(f"A{row}").value
                             if cell_value is not None:
-                                # Convertir en string car le code peut être numérique
-                                codes_list.append(str(cell_value).strip())
+                                # Convertir en string et normaliser
+                                normalized_code = str(cell_value).strip()
+                                codes_list.append(normalized_code)
                         
-                        logger.info(f"Nombre de codes communes trouvés: {len(codes_list)}")
+                        # Normaliser le code fourni par l'utilisateur
+                        normalized_user_code = str(code_commune).strip().lstrip('0')  # Enlever le zéro initial
+                        logger.info(f"Code fourni par l'utilisateur (normalisé): '{normalized_user_code}'")
+                        logger.info(f"Codes disponibles: {codes_list[:20]}...")  # Afficher les 20 premiers codes
                         
-                        # Vérifier si le code commune fourni existe dans la liste
-                        if str(code_commune).strip() in codes_list:
-                            logger.info(f"Code commune {code_commune} trouvé dans la liste")
+                        # Vérification avec affichage détaillé
+                        if normalized_user_code in codes_list or str(normalized_user_code) in [str(code).split('.')[0] for code in codes_list]:
+                            logger.info(f"Code commune '{normalized_user_code}' TROUVÉ dans la liste")
                             ws.range("J25").value = code_commune
-                            logger.info(f"Code commune {code_commune} appliqué dans cell J25")
+                            logger.info(f"Code commune appliqué dans cell J25")
                         else:
-                            logger.warning(f"Code commune {code_commune} non trouvé dans la liste")
-                            # Arrêter le traitement et renvoyer une erreur au client
-                            raise HTTPException(status_code=400, 
-                                            detail="Le code Commune n'est pas dans la base de données")
-                    except HTTPException:
-                        # Remonter les HTTPException au client
-                        raise
+                            logger.warning(f"Code commune '{normalized_user_code}' NON TROUVÉ dans la liste")
+                            
+                            # Recherche approximative pour aider au débogage
+                            close_matches = [code for code in codes_list if normalized_user_code in code or code in normalized_user_code]
+                            if close_matches:
+                                logger.info(f"Correspondances proches trouvées: {close_matches}")
+                            
+                            # Lève une exception avec un message personnalisé
+                            from fastapi.responses import JSONResponse
+                            return JSONResponse(
+                                status_code=400,
+                                content={"message": "Le code Commune n'est pas dans la base de données"}
+                            )
                     except Exception as e:
                         logger.error(f"Erreur lors de la vérification du code commune: {e}")
-                        # En cas d'erreur technique, renvoyer aussi une erreur au client
+                        # En cas d'erreur technique, on continue sans appliquer le code
                         raise HTTPException(status_code=500, 
                                         detail="Erreur lors de la vérification du code commune")
                 else:
@@ -271,7 +230,7 @@ async def convert(
                     # Si on ne peut pas vérifier, on considère que c'est une erreur
                     raise HTTPException(status_code=500, 
                                     detail="Impossible de vérifier le code commune (feuille non trouvée)")
-               
+   
             # Force calculation
             logger.info("Forcing Excel calculation...")
             wb.app.calculate()
@@ -323,12 +282,13 @@ async def convert(
             
             # Debug: print values in key cells
             debug_cells = {
-                "B5": ws.range("B5").value,
-                "B9": ws.range("B9").value,
-                "B13": ws.range("B13").value,
-                "Template-E23": template_sheet.range("E23").value if "E23" in template_sheet.used_range.address else None,
-                "Template-E26": template_sheet.range("E26").value if "E26" in template_sheet.used_range.address else None
-            }
+                
+                "brut_mensuel" : template_sheet.range("E23").value,
+                "net_mensuel" : template_sheet.range("E26").value,
+                "frais_gestion" : template_sheet.range("E8").value,
+                "ticket_contribution" : template_sheet.range("E18").value if ticket_restaurant_bool else 0,
+                "mutuelle_contribution": template_sheet.range("E14").value if mutuelle_bool else 0
+                }
             logger.info(f"Debug cell values: {debug_cells}")
             
             # Try to get results from different locations

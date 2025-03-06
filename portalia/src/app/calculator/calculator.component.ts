@@ -24,7 +24,7 @@ export class CalculatorComponent implements OnInit {
     tjm: 500, // Default TJM value
     joursTravailles: 18, // Default: 18 days
     contractType: 'CDI', // Default: CDI
-    fraisFonctionnement: 8, // Default: 8%
+    fraisFonctionnement: 0, // Default: 8%
     ticketRestaurant: false,
     mutuelle: false,
     codeCommune: ''
@@ -78,7 +78,7 @@ export class CalculatorComponent implements OnInit {
   calculate(): void {
     // Validate inputs before making API call
     if (this.parameters.tjm <= 0) {
-      this.errorMessage = "Le taux journalier doit être supérieur à 0.";
+      this.errorMessage = "Le taux journalier doit être supérieur à 290.";
       return;
     }
     
@@ -150,7 +150,7 @@ export class CalculatorComponent implements OnInit {
       tjm: 500,
       joursTravailles: 18,
       contractType: 'CDI',
-      fraisFonctionnement: 8,
+      fraisFonctionnement: 0,
       ticketRestaurant: false,
       mutuelle: false,
       codeCommune: ''

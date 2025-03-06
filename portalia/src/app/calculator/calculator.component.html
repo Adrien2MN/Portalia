@@ -1,10 +1,10 @@
 <div class="calculator-container">
-  <h1>Salary Calculator</h1>
-  
+  <h1>Simulateur de Salaire</h1>
+
   <!-- Main Input Fields -->
   <div>
     <label for="tjm">Taux Journalier (€):</label>
-    <input id="tjm" type="number" [(ngModel)]="parameters.tjm" required min="0" />
+    <input id="tjm" type="number" [(ngModel)]="parameters.tjm" required min=290 />
   </div>
   <div>
     <label for="joursTravailles">Nombre de Jours Travaillés:</label>
@@ -20,8 +20,8 @@
   
   <!-- Frais de Fonctionnement -->
   <div>
-    <label for="fraisFonctionnement">Frais de Fonctionnement (%):</label>
-    <input id="fraisFonctionnement" type="number" [(ngModel)]="parameters.fraisFonctionnement" min="0" max="100" />
+    <label for="fraisFonctionnement">Frais de Fonctionnement :</label>
+    <input id="fraisFonctionnement" type="number" [(ngModel)]="parameters.fraisFonctionnement" min="0" max="1000" />
   </div>
   
   <!-- Ticket Restaurant -->
