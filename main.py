@@ -155,7 +155,7 @@ async def convert(
             
             # Handle ticket restaurant
             if ticket_restaurant_bool:
-                ws.range("J21").value = 198
+                ws.range("J21").value = jours_travailles * 11
                 logger.info("Enabled ticket restaurant in cell J21")
             else:
                 ws.range("J21").value = 0
@@ -309,8 +309,8 @@ async def convert(
                 logger.info(f"Using B9 for net_mensuel: {net_mensuel}")
             
             if frais_gestion is None:
-                frais_gestion = ws.range("B13").value
-                logger.info(f"Using B13 for frais_gestion: {frais_gestion}")
+                frais_gestion = ws.range("J11").value
+                logger.info(f"Using J11 for frais_gestion: {frais_gestion}")
             
             # Construct the result
             result = {
