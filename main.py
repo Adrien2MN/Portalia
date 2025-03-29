@@ -55,6 +55,7 @@ async def convert(
     jours_travailles: Optional[int] = Query(None),
     contract_type: Optional[str] = Query(None),
     frais_fonctionnement: Optional[float] = Query(None),
+    frais_gestion: Optional[float] = Query(None),
     ticket_restaurant: Optional[str] = Query(None),
     mutuelle: Optional[str] = Query(None),
     code_commune: Optional[str] = Query(None),
@@ -63,7 +64,8 @@ async def convert(
     # Log the received parameters
     logger.info(f"Received parameters: tjm={tjm}, jours_travailles={jours_travailles}, " +
                 f"contract_type={contract_type}, frais_fonctionnement={frais_fonctionnement}, " +
-                f"ticket_restaurant={ticket_restaurant}, mutuelle={mutuelle}, code_commune={code_commune}, " +
+                f"frais_gestion={frais_gestion}, ticket_restaurant={ticket_restaurant}, " +
+                f"mutuelle={mutuelle}, code_commune={code_commune}, " +
                 f"valeur_j9={valeur_j9}")
     
     # Convert string boolean parameters to actual booleans
@@ -148,6 +150,11 @@ async def convert(
                 ws.range("J10").value = 0.1
                 logger.info("Set contract type to CDD")
             
+            # Handle frais de gestion (Nouveau - J7)
+            if frais_gestion is not None:
+                ws.range("J7").value = frais_gestion
+                logger.info(f"Set frais de gestion to {frais_gestion} in cell J7")
+                
             # Handle frais de fonctionnement
             if frais_fonctionnement is not None:
                 ws.range("J12").value = frais_fonctionnement*100
@@ -350,6 +357,7 @@ def fallback_convert(
     tjm: Optional[float] = Query(500),
     jours_travailles: Optional[int] = Query(18),
     contract_type: Optional[str] = Query("CDI"),
+    frais_gestion: Optional[float] = Query(0),
     ticket_restaurant: Optional[bool] = Query(False),
     mutuelle: Optional[bool] = Query(False)
 ):
