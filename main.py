@@ -54,6 +54,7 @@ async def convert(
     tjm: Optional[float] = Query(None),
     jours_travailles: Optional[int] = Query(None),
     contract_type: Optional[str] = Query(None),
+    frais_provision_cdi: Optional[float] = Query(None),  # Nouveau paramètre
     frais_fonctionnement: Optional[float] = Query(None),
     frais_gestion: Optional[float] = Query(None),
     ticket_restaurant: Optional[str] = Query(None),
@@ -63,7 +64,8 @@ async def convert(
 ):
     # Log the received parameters
     logger.info(f"Received parameters: tjm={tjm}, jours_travailles={jours_travailles}, " +
-                f"contract_type={contract_type}, frais_fonctionnement={frais_fonctionnement}, " +
+                f"contract_type={contract_type}, frais_provision_cdi={frais_provision_cdi}, " +
+                f"frais_fonctionnement={frais_fonctionnement}, " +
                 f"frais_gestion={frais_gestion}, ticket_restaurant={ticket_restaurant}, " +
                 f"mutuelle={mutuelle}, code_commune={code_commune}, " +
                 f"valeur_j9={valeur_j9}")
@@ -94,6 +96,11 @@ async def convert(
         logger.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)
 
+    # Variables pour le nettoyage
+    temp_dir = None
+    app_excel = None
+    wb = None
+
     try:
         logger.info(f"Starting Excel processing with TJM={tjm}, jours={jours_travailles}")
         
@@ -114,22 +121,27 @@ async def convert(
             wb = app_excel.books.open(temp_excel_path)
             logger.info("Excel file opened successfully")
         except Exception as e2:
-                logger.error(f"Error opening Excel with absolute path: {e2}")
-                raise HTTPException(status_code=500, 
-                                   detail=f"Could not open Excel file: {str(e)}. Tried absolute path: {str(e2)}")
+            logger.error(f"Error opening Excel with absolute path: {e2}")
+            raise HTTPException(status_code=500, 
+                               detail=f"Could not open Excel file. Tried absolute path: {str(e2)}")
 
+        # Get all sheet names for debugging
+        sheet_names = [sheet.name for sheet in wb.sheets]
+        logger.info(f"Excel sheets: {sheet_names}")
+        
+        # Look for the calculation sheet - try multiple possible names
+        calculation_sheet_name = "1. Calcul Avec prov"
+        
+        # Access the calculation sheet
         try:
-            # Get all sheet names for debugging
-            sheet_names = [sheet.name for sheet in wb.sheets]
-            logger.info(f"Excel sheets: {sheet_names}")
-            
-            # Look for the calculation sheet - try multiple possible names
-            calculation_sheet_name = "1. Calcul Avec prov"
-            
-            # Access the calculation sheet
             ws = wb.sheets[calculation_sheet_name]
-            
-            # Fill in the data
+        except Exception as e:
+            logger.error(f"Error accessing calculation sheet: {e}")
+            raise HTTPException(status_code=500, 
+                              detail=f"Could not access calculation sheet: {str(e)}")
+
+        # Fill in the data
+        try:
             logger.info("Setting values in Excel...")
             
             ws.range("J4").value = tjm
@@ -138,12 +150,14 @@ async def convert(
             ws.range("J5").value = jours_travailles
             logger.info(f"Set jours travaillés to {jours_travailles} in cell J5")
             
-            # Handle contract type
+            # Handle contract type and frais de provision CDI
             if contract_type == "CDI":
-                ws.range("J8").value = 0.02
-                ws.range("J9").value = 0.1
+                # Utilisation des frais de provision CDI fournis ou valeur par défaut
+                provision_cdi_value = frais_provision_cdi if frais_provision_cdi is not None else 0.1
+                ws.range("J8").value = 0.02  # Valeur par défaut pour CDI
+                ws.range("J9").value = provision_cdi_value  # Utilisation du paramètre frais_provision_cdi
                 ws.range("J10").value = 0
-                logger.info(f"Set contract type to CDI")
+                logger.info(f"Set contract type to CDI with provision rate: {provision_cdi_value}")
             elif contract_type == "CDD":
                 ws.range("J8").value = 0
                 ws.range("J9").value = 0
@@ -175,137 +189,160 @@ async def convert(
             else:
                 ws.range("J17").value = "Non"
                 logger.info("Set mutuelle to 'Non' in cell J17")
-            
-            # Handle code commune
-            if code_commune:
+        except Exception as e:
+            logger.error(f"Error setting Excel values: {e}")
+            raise HTTPException(status_code=500, 
+                              detail=f"Error setting Excel values: {str(e)}")
+        
+        # Handle code commune
+        if code_commune:
+            try:
                 # Vérifier d'abord si la feuille tauxTransport existe
                 transport_sheet_name = "tauxTransport.20240102"
                 
                 if transport_sheet_name in [sheet.name for sheet in wb.sheets]:
                     transport_sheet = wb.sheets[transport_sheet_name]
                     
-                    try:
-                        # Optimisation 1: Lecture en une seule fois des codes communes
-                        logger.info(f"Lecture des codes communes depuis la feuille {transport_sheet_name}")
+                    # Optimisation 1: Lecture en une seule fois des codes communes
+                    logger.info(f"Lecture des codes communes depuis la feuille {transport_sheet_name}")
+                    
+                    # Obtenir la plage utilisée
+                    used_range = transport_sheet.used_range
+                    last_row = used_range.last_cell.row
+                    
+                    # Lire toutes les valeurs en une seule opération (plus rapide)
+                    all_codes_range = transport_sheet.range(f"A2:A{last_row}")
+                    all_codes_values = all_codes_range.value
+                    
+                    # Optimisation 2: Créer un ensemble (set) pour une recherche O(1)
+                    codes_set = set()
+                    
+                    # Normaliser tous les codes et les ajouter à l'ensemble
+                    for code in all_codes_values:
+                        if code is not None:
+                            # Normaliser en supprimant les espaces et les zéros au début
+                            normalized_code = str(code).strip().lstrip('0')
+                            # Gérer les codes avec décimales (ex: "75001.0")
+                            if '.' in normalized_code:
+                                normalized_code = normalized_code.split('.')[0]
+                            codes_set.add(normalized_code)
+                    
+                    # Normaliser le code fourni par l'utilisateur de la même manière
+                    normalized_user_code = str(code_commune).strip().lstrip('0')
+                    if '.' in normalized_user_code:
+                        normalized_user_code = normalized_user_code.split('.')[0]
                         
-                        # Obtenir la plage utilisée
-                        used_range = transport_sheet.used_range
-                        last_row = used_range.last_cell.row
+                    logger.info(f"Code fourni par l'utilisateur (normalisé): '{normalized_user_code}'")
+                    logger.info(f"Nombre total de codes communes chargés: {len(codes_set)}")
+                    
+                    # Optimisation 3: Recherche directe dans l'ensemble
+                    if normalized_user_code in codes_set:
+                        logger.info(f"Code commune '{normalized_user_code}' TROUVÉ dans la liste")
+                        ws.range("J25").value = code_commune
+                        logger.info(f"Code commune appliqué dans cell J25")
+                    else:
+                        logger.warning(f"Code commune '{normalized_user_code}' NON TROUVÉ dans la liste")
                         
-                        # Lire toutes les valeurs en une seule opération (plus rapide)
-                        all_codes_range = transport_sheet.range(f"A2:A{last_row}")
-                        all_codes_values = all_codes_range.value
+                        # Recherche approximative uniquement pour le logging (pas pour la production)
+                        # Ne faire cette recherche que si le niveau de log est DEBUG
+                        if logger.level <= logging.DEBUG:
+                            close_matches = [code for code in list(codes_set)[:100] if normalized_user_code in code or code in normalized_user_code]
+                            if close_matches:
+                                logger.debug(f"Correspondances proches trouvées: {close_matches}")
                         
-                        # Optimisation 2: Créer un ensemble (set) pour une recherche O(1)
-                        codes_set = set()
-                        
-                        # Normaliser tous les codes et les ajouter à l'ensemble
-                        for code in all_codes_values:
-                            if code is not None:
-                                # Normaliser en supprimant les espaces et les zéros au début
-                                normalized_code = str(code).strip().lstrip('0')
-                                # Gérer les codes avec décimales (ex: "75001.0")
-                                if '.' in normalized_code:
-                                    normalized_code = normalized_code.split('.')[0]
-                                codes_set.add(normalized_code)
-                        
-                        # Normaliser le code fourni par l'utilisateur de la même manière
-                        normalized_user_code = str(code_commune).strip().lstrip('0')
-                        if '.' in normalized_user_code:
-                            normalized_user_code = normalized_user_code.split('.')[0]
-                            
-                        logger.info(f"Code fourni par l'utilisateur (normalisé): '{normalized_user_code}'")
-                        logger.info(f"Nombre total de codes communes chargés: {len(codes_set)}")
-                        
-                        # Optimisation 3: Recherche directe dans l'ensemble
-                        if normalized_user_code in codes_set:
-                            logger.info(f"Code commune '{normalized_user_code}' TROUVÉ dans la liste")
-                            ws.range("J25").value = code_commune
-                            logger.info(f"Code commune appliqué dans cell J25")
-                        else:
-                            logger.warning(f"Code commune '{normalized_user_code}' NON TROUVÉ dans la liste")
-                            
-                            # Recherche approximative uniquement pour le logging (pas pour la production)
-                            # Ne faire cette recherche que si le niveau de log est DEBUG
-                            if logger.level <= logging.DEBUG:
-                                close_matches = [code for code in list(codes_set)[:100] if normalized_user_code in code or code in normalized_user_code]
-                                if close_matches:
-                                    logger.debug(f"Correspondances proches trouvées: {close_matches}")
-                            
-                            # Retourne une réponse JSON avec un message d'erreur
-                            from fastapi.responses import JSONResponse
-                            return JSONResponse(
-                                status_code=400,
-                                content={"message": "Le code Commune n'est pas dans la base de données"}
-                            )
-                            
-                    except Exception as e:
-                        logger.error(f"Erreur lors de la vérification du code commune: {e}")
-                        raise HTTPException(status_code=500, 
-                                        detail=f"Erreur lors de la vérification du code commune: {str(e)}")
+                        # Retourne une réponse JSON avec un message d'erreur
+                        from fastapi.responses import JSONResponse
+                        return JSONResponse(
+                            status_code=400,
+                            content={"message": "Le code Commune n'est pas dans la base de données"}
+                        )
                 else:
                     logger.warning(f"Feuille des taux de transport '{transport_sheet_name}' non trouvée parmi les feuilles: {sheet_names}")
                     raise HTTPException(status_code=500, 
                                     detail="Impossible de vérifier le code commune (feuille non trouvée)")
+            except Exception as e:
+                logger.error(f"Erreur lors de la vérification du code commune: {e}")
+                raise HTTPException(status_code=500, 
+                                detail=f"Erreur lors de la vérification du code commune: {str(e)}")
    
-            # Force calculation
+        # Force calculation
+        try:
             logger.info("Forcing Excel calculation...")
             wb.app.calculate()
-            
-            # Try to run the macro if it exists
-            try:
-                logger.info("Attempting to run macro...")
-                # First check if the TJM macro exists
-                wb.macro("TJM")()
-                logger.info("Successfully ran TJM macro")
-            except Exception as e:
-                logger.warning(f"Error running TJM macro: {e}")
-                # Try other common macro names
-                for macro_name in ["UpdateTemplate", "MAJ", "Calculate"]:
-                    try:
-                        wb.macro(macro_name)()
-                        logger.info(f"Successfully ran {macro_name} macro")
-                        break
-                    except Exception as e2:
-                        logger.warning(f"Error running {macro_name} macro: {e2}")
-            
-            # Look for template sheet for results
-            template_sheet_name = None
-            possible_template_sheets = ["Template", "3. Template", "Résultats"]
-            
-            for sheet_name in possible_template_sheets:
-                if sheet_name in sheet_names:
-                    template_sheet_name = sheet_name
-                    logger.info(f"Found template sheet: {template_sheet_name}")
+        except Exception as e:
+            logger.error(f"Error during Excel calculation: {e}")
+            # Continue despite calculation error
+        
+        # Try to run the macro if it exists
+        try:
+            logger.info("Attempting to run macro...")
+            # First check if the TJM macro exists
+            wb.macro("TJM")()
+            logger.info("Successfully ran TJM macro")
+        except Exception as e:
+            logger.warning(f"Error running TJM macro: {e}")
+            # Try other common macro names
+            macro_success = False
+            for macro_name in ["UpdateTemplate", "MAJ", "Calculate"]:
+                try:
+                    wb.macro(macro_name)()
+                    logger.info(f"Successfully ran {macro_name} macro")
+                    macro_success = True
                     break
+                except Exception as e2:
+                    logger.warning(f"Error running {macro_name} macro: {e2}")
             
-            if not template_sheet_name:
-                # Try to find by content
-                for sheet_name in sheet_names:
-                    try:
-                        if "template" in sheet_name.lower() or "résultat" in sheet_name.lower():
-                            template_sheet_name = sheet_name
-                            logger.info(f"Found template sheet via name match: {template_sheet_name}")
-                            break
-                    except Exception:
-                        pass
-            
-            if not template_sheet_name:
-                # If still not found, we'll use the calculation sheet to try to get results
-                template_sheet_name = calculation_sheet_name
-                logger.warning(f"Using calculation sheet for results: {template_sheet_name}")
-            
+            # Continue even if macro execution failed - it might work without it
+        
+        # Look for template sheet for results
+        template_sheet_name = None
+        possible_template_sheets = ["Template", "3. Template", "Résultats"]
+        
+        for sheet_name in possible_template_sheets:
+            if sheet_name in sheet_names:
+                template_sheet_name = sheet_name
+                logger.info(f"Found template sheet: {template_sheet_name}")
+                break
+        
+        if not template_sheet_name:
+            # Try to find by content
+            for sheet_name in sheet_names:
+                try:
+                    if "template" in sheet_name.lower() or "résultat" in sheet_name.lower():
+                        template_sheet_name = sheet_name
+                        logger.info(f"Found template sheet via name match: {template_sheet_name}")
+                        break
+                except Exception:
+                    pass
+        
+        if not template_sheet_name:
+            # If still not found, we'll use the calculation sheet to try to get results
+            template_sheet_name = calculation_sheet_name
+            logger.warning(f"Using calculation sheet for results: {template_sheet_name}")
+        
+        try:
             template_sheet = wb.sheets[template_sheet_name]
-            
-            # Debug: print values in key cells
+        except Exception as e:
+            logger.error(f"Error accessing template sheet: {e}")
+            raise HTTPException(status_code=500, 
+                              detail=f"Could not access template sheet: {str(e)}")
+        
+        # Debug: print values in key cells
+        try:
             debug_cells = {
-                
                 "brut_mensuel" : template_sheet.range("E23").value,
                 "net_mensuel" : template_sheet.range("E26").value,
                 "frais_gestion" : template_sheet.range("E8").value,
                 "ticket_contribution" : template_sheet.range("E18").value if ticket_restaurant_bool else 0,
                 "mutuelle_contribution": template_sheet.range("E14").value if mutuelle_bool else 0
-                }
+            }
+            
+            # Ajouter le montant de provision CDI si applicable
+            if contract_type == "CDI" and frais_provision_cdi is not None and frais_provision_cdi > 0:
+                frais_provision_cdi_value = template_sheet.range("E10").value  # Adapter la cellule selon le template
+                debug_cells["frais_provision_cdi"] = frais_provision_cdi_value
+                logger.info(f"Frais de provision CDI: {frais_provision_cdi_value}")
+            
             logger.info(f"Debug cell values: {debug_cells}")
             
             # Try to get results from different locations
@@ -316,7 +353,16 @@ async def convert(
             ticket_contribution = template_sheet.range("E18").value if ticket_restaurant_bool else 0
             mutuelle_contribution = template_sheet.range("E14").value if mutuelle_bool else 0
             
-            # If those are not available, try the cells from calculation sheet
+            # Récupérer les frais de provision CDI si applicable
+            frais_provision_cdi_value = None
+            if contract_type == "CDI" and frais_provision_cdi is not None and frais_provision_cdi > 0:
+                frais_provision_cdi_value = template_sheet.range("E10").value  # Adapter la cellule selon le template
+        except Exception as e:
+            logger.error(f"Error reading results from template: {e}")
+            # Continue anyway, we'll try alternative cells
+        
+        # If those are not available, try the cells from calculation sheet
+        try:
             if brut_mensuel is None:
                 brut_mensuel = ws.range("B5").value
                 logger.info(f"Using B5 for brut_mensuel: {brut_mensuel}")
@@ -328,38 +374,64 @@ async def convert(
             if frais_gestion is None:
                 frais_gestion = ws.range("J11").value
                 logger.info(f"Using J11 for frais_gestion: {frais_gestion}")
-            
-            # Construct the result
-            result = {
-                "tjm": tjm,
-                "brut_mensuel": brut_mensuel,
-                "net_mensuel": net_mensuel,
-                "frais_gestion": frais_gestion,
-                "autres_details": {
-                    "ticket_restaurant_contribution": ticket_contribution,
-                    "mutuelle_contribution": mutuelle_contribution,
-                }
+                
+            # Si les frais de provision CDI ne sont pas disponibles dans la feuille de template
+            if contract_type == "CDI" and frais_provision_cdi is not None and frais_provision_cdi > 0 and frais_provision_cdi_value is None:
+                frais_provision_cdi_value = ws.range("J9").value * tjm * jours_travailles  # Calcul approximatif
+                logger.info(f"Calculated frais_provision_cdi_value: {frais_provision_cdi_value}")
+        except Exception as e:
+            logger.warning(f"Error accessing alternative cells: {e}")
+            # Continue with what we have
+        
+        # Construct the result
+        result = {
+            "tjm": tjm,
+            "brut_mensuel": brut_mensuel,
+            "net_mensuel": net_mensuel,
+            "frais_gestion": frais_gestion,
+            "autres_details": {
+                "ticket_restaurant_contribution": ticket_contribution,
+                "mutuelle_contribution": mutuelle_contribution,
             }
+        }
+        
+        # Ajouter les frais de provision CDI au résultat si applicable
+        if contract_type == "CDI" and frais_provision_cdi is not None and frais_provision_cdi > 0 and frais_provision_cdi_value is not None:
+            result["autres_details"]["frais_provision_cdi"] = frais_provision_cdi_value
+        
+        logger.info(f"Final result: {result}")
+        return result
             
-            logger.info(f"Final result: {result}")
-            return result
-            
-        finally:
-            # Ensure proper cleanup
-            try:
-                logger.info("Cleaning up Excel resources...")
-                wb.save()
-                wb.close()
-                app_excel.quit()
-                shutil.rmtree(temp_dir)
-                logger.info("Excel cleanup completed")
-            except Exception as e:
-                logger.error(f"Error during Excel cleanup: {e}")
-    
     except Exception as e:
         error_msg = f"Excel processing error: {str(e)}"
         logger.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)
+    finally:
+        # Ensure proper cleanup
+        try:
+            logger.info("Cleaning up Excel resources...")
+            if wb is not None:
+                try:
+                    wb.save()
+                    wb.close()
+                except Exception as e:
+                    logger.error(f"Error closing workbook: {e}")
+            
+            if app_excel is not None:
+                try:
+                    app_excel.quit()
+                except Exception as e:
+                    logger.error(f"Error quitting Excel: {e}")
+            
+            if temp_dir is not None:
+                try:
+                    shutil.rmtree(temp_dir)
+                except Exception as e:
+                    logger.error(f"Error removing temp directory: {e}")
+                    
+            logger.info("Excel cleanup completed")
+        except Exception as e:
+            logger.error(f"Error during Excel cleanup: {e}")
 
 # Fallback endpoint that returns dummy data
 @app.get("/fallback-convert")
@@ -367,12 +439,13 @@ def fallback_convert(
     tjm: Optional[float] = Query(500),
     jours_travailles: Optional[int] = Query(18),
     contract_type: Optional[str] = Query("CDI"),
+    frais_provision_cdi: Optional[float] = Query(10),  # Nouveau paramètre
     frais_gestion: Optional[float] = Query(0),
     ticket_restaurant: Optional[bool] = Query(False),
     mutuelle: Optional[bool] = Query(False)
 ):
     """Fallback endpoint that returns dummy data when Excel fails"""
-    return {
+    result = {
         "tjm": tjm,
         "brut_mensuel": 7500.0,
         "net_mensuel": 5250.0,
@@ -383,3 +456,10 @@ def fallback_convert(
         },
         "note": "This is fallback data. Excel automation failed."
     }
+    
+    # Ajouter les frais de provision CDI au résultat si applicable
+    if contract_type == "CDI" and frais_provision_cdi is not None and frais_provision_cdi > 0:
+        provision_amount = (tjm * jours_travailles * (frais_provision_cdi / 100))
+        result["autres_details"]["frais_provision_cdi"] = provision_amount
+    
+    return result

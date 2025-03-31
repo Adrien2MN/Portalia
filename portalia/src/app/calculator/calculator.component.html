@@ -18,6 +18,12 @@
     <option value="CDD">CDD</option>
   </select>
   
+  <!-- Frais de provision CDI (uniquement visible si CDI est sélectionné) -->
+  <div *ngIf="parameters.contractType === 'CDI'">
+    <label for="fraisProvisionCDI">Frais de Provision CDI (%):</label>
+    <input id="fraisProvisionCDI" type="number" [(ngModel)]="parameters.fraisProvisionCDI" min="0" max="100" />
+  </div>
+  
   <!-- Frais de Fonctionnement -->
   <div>
     <label for="fraisFonctionnement">Frais de Fonctionnement :</label>
@@ -103,6 +109,11 @@
     <div *ngIf="parameters.mutuelle" class="result-item">
       <span class="result-label">Contribution Mutuelle:</span>
       <span class="result-value">{{ formatCurrency(result.autres_details?.mutuelle_contribution) }}</span>
+    </div>
+    
+    <div *ngIf="parameters.contractType === 'CDI' && parameters.fraisProvisionCDI > 0" class="result-item">
+      <span class="result-label">Frais de Provision CDI:</span>
+      <span class="result-value">{{ formatCurrency(result.autres_details?.frais_provision_cdi) }}</span>
     </div>
   </div>
 </div>

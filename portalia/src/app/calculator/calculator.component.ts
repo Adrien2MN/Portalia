@@ -9,6 +9,7 @@ interface CalculationResult {
   autres_details: {
     ticket_restaurant_contribution: number;
     mutuelle_contribution: number;
+    frais_provision_cdi?: number; // Ajout du champ pour les frais de provision CDI
   };
 }
 
@@ -24,6 +25,7 @@ export class CalculatorComponent implements OnInit {
     tjm: 500, // Default TJM value
     joursTravailles: 18, // Default: 18 days
     contractType: 'CDI', // Default: CDI
+    fraisProvisionCDI: 10, // Default: 10% (seulement pour CDI)
     fraisFonctionnement: 0, // Default: 0%
     fraisGestion: 0, // Nouveau paramètre pour la cellule J7
     ticketRestaurant: false,
@@ -93,6 +95,11 @@ export class CalculatorComponent implements OnInit {
       .set('frais_fonctionnement', (this.parameters.fraisFonctionnement / 100).toString())
       .set('frais_gestion', (this.parameters.fraisGestion / 100).toString());
     
+    // Ajouter les frais de provision CDI si le contrat est CDI
+    if (this.parameters.contractType === 'CDI') {
+      params = params.set('frais_provision_cdi', (this.parameters.fraisProvisionCDI / 100).toString());
+    }
+    
     // Only add optional parameters if they have values
     if (this.parameters.ticketRestaurant) {
       params = params.set('ticket_restaurant', 'true');
@@ -146,6 +153,7 @@ export class CalculatorComponent implements OnInit {
       tjm: 500,
       joursTravailles: 18,
       contractType: 'CDI',
+      fraisProvisionCDI: 10,
       fraisFonctionnement: 0,
       fraisGestion: 0,
       ticketRestaurant: false,
