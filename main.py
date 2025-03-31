@@ -181,60 +181,70 @@ async def convert(
                 # Vérifier d'abord si la feuille tauxTransport existe
                 transport_sheet_name = "tauxTransport.20240102"
                 
-                if transport_sheet_name:
+                if transport_sheet_name in [sheet.name for sheet in wb.sheets]:
                     transport_sheet = wb.sheets[transport_sheet_name]
                     
-                    # Récupérer tous les codes commune de la colonne A
                     try:
+                        # Optimisation 1: Lecture en une seule fois des codes communes
+                        logger.info(f"Lecture des codes communes depuis la feuille {transport_sheet_name}")
+                        
                         # Obtenir la plage utilisée
                         used_range = transport_sheet.used_range
                         last_row = used_range.last_cell.row
-                        codes_list = []
                         
-                        # Logging pour débogage
-                        logger.info(f"Analyse de la feuille {transport_sheet_name} jusqu'à la ligne {last_row}")
+                        # Lire toutes les valeurs en une seule opération (plus rapide)
+                        all_codes_range = transport_sheet.range(f"A2:A{last_row}")
+                        all_codes_values = all_codes_range.value
                         
-                        # Lire tous les codes communes et les normaliser pour la comparaison
-                        #for row in range(2, last_row + 1): 
-                        for row in range(2, 100): # Commencer à la ligne 2 pour éviter l'en-tête
-                            cell_value = transport_sheet.range(f"A{row}").value
-                            if cell_value is not None:
-                                # Convertir en string et normaliser
-                                normalized_code = str(cell_value).strip()
-                                codes_list.append(normalized_code)
+                        # Optimisation 2: Créer un ensemble (set) pour une recherche O(1)
+                        codes_set = set()
                         
-                        # Normaliser le code fourni par l'utilisateur
-                        normalized_user_code = str(code_commune).strip().lstrip('0')  # Enlever le zéro initial
+                        # Normaliser tous les codes et les ajouter à l'ensemble
+                        for code in all_codes_values:
+                            if code is not None:
+                                # Normaliser en supprimant les espaces et les zéros au début
+                                normalized_code = str(code).strip().lstrip('0')
+                                # Gérer les codes avec décimales (ex: "75001.0")
+                                if '.' in normalized_code:
+                                    normalized_code = normalized_code.split('.')[0]
+                                codes_set.add(normalized_code)
+                        
+                        # Normaliser le code fourni par l'utilisateur de la même manière
+                        normalized_user_code = str(code_commune).strip().lstrip('0')
+                        if '.' in normalized_user_code:
+                            normalized_user_code = normalized_user_code.split('.')[0]
+                            
                         logger.info(f"Code fourni par l'utilisateur (normalisé): '{normalized_user_code}'")
-                        logger.info(f"Codes disponibles: {codes_list[:20]}...")  # Afficher les 20 premiers codes
+                        logger.info(f"Nombre total de codes communes chargés: {len(codes_set)}")
                         
-                        # Vérification avec affichage détaillé
-                        if normalized_user_code in codes_list or str(normalized_user_code) in [str(code).split('.')[0] for code in codes_list]:
+                        # Optimisation 3: Recherche directe dans l'ensemble
+                        if normalized_user_code in codes_set:
                             logger.info(f"Code commune '{normalized_user_code}' TROUVÉ dans la liste")
                             ws.range("J25").value = code_commune
                             logger.info(f"Code commune appliqué dans cell J25")
                         else:
                             logger.warning(f"Code commune '{normalized_user_code}' NON TROUVÉ dans la liste")
                             
-                            # Recherche approximative pour aider au débogage
-                            close_matches = [code for code in codes_list if normalized_user_code in code or code in normalized_user_code]
-                            if close_matches:
-                                logger.info(f"Correspondances proches trouvées: {close_matches}")
+                            # Recherche approximative uniquement pour le logging (pas pour la production)
+                            # Ne faire cette recherche que si le niveau de log est DEBUG
+                            if logger.level <= logging.DEBUG:
+                                close_matches = [code for code in list(codes_set)[:100] if normalized_user_code in code or code in normalized_user_code]
+                                if close_matches:
+                                    logger.debug(f"Correspondances proches trouvées: {close_matches}")
                             
-                            # Lève une exception avec un message personnalisé
+                            # Retourne une réponse JSON avec un message d'erreur
                             from fastapi.responses import JSONResponse
                             return JSONResponse(
                                 status_code=400,
                                 content={"message": "Le code Commune n'est pas dans la base de données"}
                             )
+                            
                     except Exception as e:
                         logger.error(f"Erreur lors de la vérification du code commune: {e}")
-                        # En cas d'erreur technique, on continue sans appliquer le code
                         raise HTTPException(status_code=500, 
-                                        detail="Erreur lors de la vérification du code commune")
+                                        detail=f"Erreur lors de la vérification du code commune: {str(e)}")
                 else:
-                    logger.warning("Feuille des taux de transport non trouvée, impossible de vérifier le code commune")
-                    # Si on ne peut pas vérifier, on considère que c'est une erreur
+                    logger.warning(f"Feuille des taux de transport '{transport_sheet_name}' non trouvée parmi les feuilles: {sheet_names}")
                     raise HTTPException(status_code=500, 
                                     detail="Impossible de vérifier le code commune (feuille non trouvée)")
    
