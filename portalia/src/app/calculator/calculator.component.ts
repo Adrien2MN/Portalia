@@ -6,10 +6,11 @@ interface CalculationResult {
   brut_mensuel: number;
   net_mensuel: number;
   frais_gestion: number;
+  facturation_client?: number; // Ajout de la facturation client
   autres_details: {
     ticket_restaurant_contribution: number;
     mutuelle_contribution: number;
-    frais_provision_cdi?: number; // Ajout du champ pour les frais de provision CDI
+    frais_provision_cdi?: number;
   };
 }
 
@@ -25,9 +26,8 @@ export class CalculatorComponent implements OnInit {
     tjm: 500, // Default TJM value
     joursTravailles: 18, // Default: 18 days
     contractType: 'CDI', // Default: CDI
-    fraisProvisionCDI: 10, // Default: 10% (seulement pour CDI)
     fraisFonctionnement: 0, // Default: 0%
-    fraisGestion: 0, // Nouveau paramètre pour la cellule J7
+    fraisGestion: 0, // Paramètre pour la cellule J7
     ticketRestaurant: false,
     mutuelle: false,
     codeCommune: ''
@@ -84,6 +84,11 @@ export class CalculatorComponent implements OnInit {
       return;
     }
     
+    if (!this.parameters.codeCommune) {
+      this.errorMessage = "Veuillez saisir un code commune valide.";
+      return;
+    }
+    
     this.errorMessage = null;
     this.isLoading = true;
     
@@ -95,9 +100,9 @@ export class CalculatorComponent implements OnInit {
       .set('frais_fonctionnement', (this.parameters.fraisFonctionnement / 100).toString())
       .set('frais_gestion', (this.parameters.fraisGestion / 100).toString());
     
-    // Ajouter les frais de provision CDI si le contrat est CDI
+    // Paramètre frais_provision_cdi automatique à 0.1 (10%) pour CDI
     if (this.parameters.contractType === 'CDI') {
-      params = params.set('frais_provision_cdi', (this.parameters.fraisProvisionCDI / 100).toString());
+      params = params.set('frais_provision_cdi', '0.1');
     }
     
     // Only add optional parameters if they have values
@@ -113,9 +118,8 @@ export class CalculatorComponent implements OnInit {
       params = params.set('mutuelle', 'false'); 
     }
     
-    if (this.parameters.codeCommune) {
-      params = params.set('code_commune', this.parameters.codeCommune);
-    }
+    // Always set code commune
+    params = params.set('code_commune', this.parameters.codeCommune);
     
     // Log the URL that will be called for debugging
     const fullUrl = `${this.apiUrl}?${params.toString()}`;
@@ -132,7 +136,10 @@ export class CalculatorComponent implements OnInit {
         this.isLoading = false;
         
         // Create a user-friendly error message
-        if (error.error && error.error.detail) {
+        if (error.error && error.error.message) {
+          // Nouveau format de message pour les codes communes invalides
+          this.errorMessage = error.error.message;
+        } else if (error.error && error.error.detail) {
           if (error.error.detail.includes("Excel")) {
             this.errorMessage = "Une erreur s'est produite lors de la communication avec Excel. Détail: " + error.error.detail;
           } else {
@@ -153,7 +160,6 @@ export class CalculatorComponent implements OnInit {
       tjm: 500,
       joursTravailles: 18,
       contractType: 'CDI',
-      fraisProvisionCDI: 10,
       fraisFonctionnement: 0,
       fraisGestion: 0,
       ticketRestaurant: false,

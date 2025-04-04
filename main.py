@@ -383,12 +383,20 @@ async def convert(
             logger.warning(f"Error accessing alternative cells: {e}")
             # Continue with what we have
         
+        try:
+            facturation_client = template_sheet.range("E7").value
+            logger.info(f"Facturation client (E7): {facturation_client}")
+        except Exception as e:
+            logger.warning(f"Erreur lors de la récupération de la facturation client: {e}")
+            facturation_client = tjm * jours_travailles  # Valeur par défaut si non disponible
+
         # Construct the result
         result = {
             "tjm": tjm,
             "brut_mensuel": brut_mensuel,
             "net_mensuel": net_mensuel,
             "frais_gestion": frais_gestion,
+            "facturation_client": facturation_client,
             "autres_details": {
                 "ticket_restaurant_contribution": ticket_contribution,
                 "mutuelle_contribution": mutuelle_contribution,
@@ -450,6 +458,7 @@ def fallback_convert(
         "brut_mensuel": 7500.0,
         "net_mensuel": 5250.0,
         "frais_gestion": 750.0,
+        "facturation_client": tjm * jours_travailles,  # Ajout de la facturation client
         "autres_details": {
             "ticket_restaurant_contribution": 198 if ticket_restaurant else 0,
             "mutuelle_contribution": 50 if mutuelle else 0,

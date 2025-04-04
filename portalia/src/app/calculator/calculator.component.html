@@ -18,11 +18,7 @@
     <option value="CDD">CDD</option>
   </select>
   
-  <!-- Frais de provision CDI (uniquement visible si CDI est sélectionné) -->
-  <div *ngIf="parameters.contractType === 'CDI'">
-    <label for="fraisProvisionCDI">Frais de Provision CDI (%):</label>
-    <input id="fraisProvisionCDI" type="number" [(ngModel)]="parameters.fraisProvisionCDI" min="0" max="100" />
-  </div>
+  <!-- Frais de provision CDI supprimé -->
   
   <!-- Frais de Fonctionnement -->
   <div>
@@ -52,6 +48,9 @@
   <div>
     <label for="codeCommune">Code Commune:</label>
     <input id="codeCommune" type="text" [(ngModel)]="parameters.codeCommune" />
+    <div *ngIf="!parameters.codeCommune" class="warning-message">
+      Veuillez renseigner un code commune valide.
+    </div>
   </div>
 
   <!-- Error Message Display -->
@@ -61,7 +60,7 @@
 
   <!-- Button Container -->
   <div class="button-container">
-    <button (click)="calculate()" [disabled]="isLoading" class="primary-button">
+    <button (click)="calculate()" [disabled]="isLoading || !parameters.codeCommune" class="primary-button">
       <span *ngIf="!isLoading">Calculer</span>
       <span *ngIf="isLoading">Calcul en cours...</span>
     </button>
@@ -87,6 +86,11 @@
     </div>
     
     <div class="result-item">
+      <span class="result-label">Facturation Client:</span>
+      <span class="result-value">{{ formatCurrency(result.facturation_client) }}</span>
+    </div>
+    
+    <div class="result-item">
       <span class="result-label">Salaire Brut Mensuel:</span>
       <span class="result-value">{{ formatCurrency(result.brut_mensuel) }}</span>
     </div>
@@ -96,10 +100,7 @@
       <span class="result-value">{{ formatCurrency(result.net_mensuel) }}</span>
     </div>
     
-    <div class="result-item">
-      <span class="result-label">Frais de Gestion:</span>
-      <span class="result-value">{{ formatCurrency(result.frais_gestion) }}</span>
-    </div>
+    <!-- Frais de Gestion supprimé -->
     
     <div *ngIf="parameters.ticketRestaurant" class="result-item">
       <span class="result-label">Contribution Ticket Restaurant:</span>
@@ -111,9 +112,6 @@
       <span class="result-value">{{ formatCurrency(result.autres_details?.mutuelle_contribution) }}</span>
     </div>
     
-    <div *ngIf="parameters.contractType === 'CDI' && parameters.fraisProvisionCDI > 0" class="result-item">
-      <span class="result-label">Frais de Provision CDI:</span>
-      <span class="result-value">{{ formatCurrency(result.autres_details?.frais_provision_cdi) }}</span>
-    </div>
+   
   </div>
 </div>

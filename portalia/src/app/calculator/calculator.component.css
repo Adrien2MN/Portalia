@@ -138,6 +138,18 @@ button:disabled {
   border: 1px solid #f5c6cb;
 }
 
+/* Warning message styling */
+.warning-message {
+  background-color: #fff3cd;
+  color: #856404;
+  padding: 8px;
+  border-radius: 4px;
+  margin-top: 5px;
+  margin-bottom: 15px;
+  border: 1px solid #ffeeba;
+  font-size: 0.9em;
+}
+
 /* Loading spinner */
 .loading-spinner {
   display: flex;
