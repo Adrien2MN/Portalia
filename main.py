@@ -54,21 +54,24 @@ async def convert(
     tjm: Optional[float] = Query(None),
     jours_travailles: Optional[int] = Query(None),
     contract_type: Optional[str] = Query(None),
-    frais_provision_cdi: Optional[float] = Query(None),  # Nouveau paramètre
+    frais_provision_cdi: Optional[float] = Query(None),
+    frais_provision_cdd: Optional[float] = Query(None),
     frais_fonctionnement: Optional[float] = Query(None),
     frais_gestion: Optional[float] = Query(None),
     ticket_restaurant: Optional[str] = Query(None),
     mutuelle: Optional[str] = Query(None),
+    taux_imposition: Optional[float] = Query(11.0),
     code_commune: Optional[str] = Query(None),
     valeur_j9: Optional[str] = Query(None)
 ):
     # Log the received parameters
     logger.info(f"Received parameters: tjm={tjm}, jours_travailles={jours_travailles}, " +
                 f"contract_type={contract_type}, frais_provision_cdi={frais_provision_cdi}, " +
+                f"frais_provision_cdd={frais_provision_cdd}, " +
                 f"frais_fonctionnement={frais_fonctionnement}, " +
                 f"frais_gestion={frais_gestion}, ticket_restaurant={ticket_restaurant}, " +
-                f"mutuelle={mutuelle}, code_commune={code_commune}, " +
-                f"valeur_j9={valeur_j9}")
+                f"mutuelle={mutuelle}, taux_imposition={taux_imposition}, " +
+                f"code_commune={code_commune}, valeur_j9={valeur_j9}")
     
     # Convert string boolean parameters to actual booleans
     ticket_restaurant_bool = str_to_bool(ticket_restaurant) if ticket_restaurant is not None else False
@@ -150,21 +153,28 @@ async def convert(
             ws.range("J5").value = jours_travailles
             logger.info(f"Set jours travaillés to {jours_travailles} in cell J5")
             
-            # Handle contract type and frais de provision CDI
+            # Gestion du taux d'imposition
+            if taux_imposition is not None:
+                ws.range("J19").value = taux_imposition / 100  # Conversion en décimal
+                logger.info(f"Set taux d'imposition to {taux_imposition}% in cell J19")
+            
+            # Handle contract type and frais de provision
             if contract_type == "CDI":
                 # Utilisation des frais de provision CDI fournis ou valeur par défaut
-                provision_cdi_value = frais_provision_cdi if frais_provision_cdi is not None else 0.1
+                provision_cdi_value = frais_provision_cdi if frais_provision_cdi is not None else 0
                 ws.range("J8").value = 0.02  # Valeur par défaut pour CDI
                 ws.range("J9").value = provision_cdi_value  # Utilisation du paramètre frais_provision_cdi
                 ws.range("J10").value = 0
                 logger.info(f"Set contract type to CDI with provision rate: {provision_cdi_value}")
             elif contract_type == "CDD":
-                ws.range("J8").value = 0
-                ws.range("J9").value = 0
-                ws.range("J10").value = 0.1
-                logger.info("Set contract type to CDD")
+                # Gestion des frais de provision CDD
+                provision_cdd_value = frais_provision_cdd if frais_provision_cdd is not None else 0
+                ws.range("J8").value = 0  # Pas de frais spécifiques CDI pour un CDD
+                ws.range("J9").value = 0  # Pas de provision CDI pour un CDD
+                ws.range("J10").value = 10+provision_cdd_value  # Paramètre frais_provision_cdd
+                logger.info(f"Set contract type to CDD with provision rate: {provision_cdd_value}")
             
-            # Handle frais de gestion (Nouveau - J7)
+            # Handle frais de gestion (J7)
             if frais_gestion is not None:
                 ws.range("J7").value = frais_gestion
                 logger.info(f"Set frais de gestion to {frais_gestion} in cell J7")
@@ -337,11 +347,15 @@ async def convert(
                 "mutuelle_contribution": template_sheet.range("E14").value if mutuelle_bool else 0
             }
             
-            # Ajouter le montant de provision CDI si applicable
+            # Ajouter le montant de provision selon le type de contrat
             if contract_type == "CDI" and frais_provision_cdi is not None and frais_provision_cdi > 0:
                 frais_provision_cdi_value = template_sheet.range("E10").value  # Adapter la cellule selon le template
                 debug_cells["frais_provision_cdi"] = frais_provision_cdi_value
                 logger.info(f"Frais de provision CDI: {frais_provision_cdi_value}")
+            elif contract_type == "CDD" and frais_provision_cdd is not None and frais_provision_cdd > 0:
+                frais_provision_cdd_value = template_sheet.range("E10").value  # Même cellule que pour CDI car placement similaire
+                debug_cells["frais_provision_cdd"] = frais_provision_cdd_value
+                logger.info(f"Frais de provision CDD: {frais_provision_cdd_value}")
             
             logger.info(f"Debug cell values: {debug_cells}")
             
@@ -353,34 +367,74 @@ async def convert(
             ticket_contribution = template_sheet.range("E18").value if ticket_restaurant_bool else 0
             mutuelle_contribution = template_sheet.range("E14").value if mutuelle_bool else 0
             
-            # Récupérer les frais de provision CDI si applicable
-            frais_provision_cdi_value = None
+            # Récupérer les frais de provision selon le type de contrat
+            frais_provision_value = None
             if contract_type == "CDI" and frais_provision_cdi is not None and frais_provision_cdi > 0:
-                frais_provision_cdi_value = template_sheet.range("E10").value  # Adapter la cellule selon le template
+                frais_provision_value = template_sheet.range("E10").value  # Adapter la cellule selon le template
+                frais_provision_type = "cdi"
+            elif contract_type == "CDD" and frais_provision_cdd is not None and frais_provision_cdd > 0:
+                frais_provision_value = template_sheet.range("E10").value  # Même cellule que pour CDI
+                frais_provision_type = "cdd"
+            else:
+                frais_provision_type = None
+                
+            # Chercher la feuille BS prov pour certaines valeurs
+            bs_prov_sheet = None
+            for possible_sheet in ["BS prov", "2. BS prov", "BS"]:
+                if possible_sheet in sheet_names:
+                    try:
+                        bs_prov_sheet = wb.sheets[possible_sheet]
+                        logger.info(f"Found BS prov sheet: {possible_sheet}")
+                        break
+                    except Exception as e:
+                        logger.warning(f"Error accessing sheet {possible_sheet}: {e}")
+                        
+            # Salaire net après impôt (E46 bs prov - K19 calcul avec prov)
+            try:
+                if bs_prov_sheet:
+                    net_apres_impot = bs_prov_sheet.range("E46").value
+                    logger.info(f"Net après impôt (E46 bs prov): {net_apres_impot}")
+                else:
+                    # Fallback: calcul approximatif si la feuille n'est pas trouvée
+                    calcul_sheet = wb.sheets[calculation_sheet_name]
+                    impot_value = calcul_sheet.range("K19").value
+                    net_apres_impot = net_mensuel - impot_value if impot_value else net_mensuel * (1 - taux_imposition / 100)
+                    logger.info(f"Net après impôt (calculé): {net_apres_impot}")
+            except Exception as e:
+                logger.warning(f"Erreur lors de la récupération du net après impôt: {e}")
+                # Fallback - estimation approximative si les cellules ne sont pas trouvées
+                net_apres_impot = net_mensuel * (1 - taux_imposition / 100) if taux_imposition else net_mensuel * 0.89
+                
+            # Total Autre élément payé (E28 Template)
+            try:
+                total_autre_element_paye = template_sheet.range("E28").value
+                logger.info(f"Total Autre élément payé (E28): {total_autre_element_paye}")
+            except Exception as e:
+                logger.warning(f"Erreur lors de la récupération du total autre élément payé: {e}")
+                total_autre_element_paye = None
+                
+            # Remboursement Frais de fonctionnement - utiliser directement la valeur fournie par l'utilisateur
+            try:
+                # Utiliser la valeur fournie par l'utilisateur
+                if frais_fonctionnement is not None:
+                    remboursement_frais = frais_fonctionnement * 100
+                else:
+                    remboursement_frais = 0
+                logger.info(f"Remboursement Frais de fonctionnement (valeur utilisateur): {remboursement_frais}")
+            except Exception as e:
+                logger.warning(f"Erreur lors du calcul des frais de fonctionnement: {e}")
+                remboursement_frais = 0
+            
+            # Tickets restaurant remis - valeur fixe selon si coché ou non
+            try:
+                tickets_restaurant_remis = 198 if ticket_restaurant_bool else 0
+                logger.info(f"Tickets restaurant remis (fixe): {tickets_restaurant_remis}")
+            except Exception as e:
+                logger.warning(f"Erreur lors du calcul des tickets restaurant remis: {e}")
+                tickets_restaurant_remis = 0
+                
         except Exception as e:
             logger.error(f"Error reading results from template: {e}")
-            # Continue anyway, we'll try alternative cells
-        
-        # If those are not available, try the cells from calculation sheet
-        try:
-            if brut_mensuel is None:
-                brut_mensuel = ws.range("B5").value
-                logger.info(f"Using B5 for brut_mensuel: {brut_mensuel}")
-            
-            if net_mensuel is None:
-                net_mensuel = ws.range("B9").value
-                logger.info(f"Using B9 for net_mensuel: {net_mensuel}")
-            
-            if frais_gestion is None:
-                frais_gestion = ws.range("J11").value
-                logger.info(f"Using J11 for frais_gestion: {frais_gestion}")
-                
-            # Si les frais de provision CDI ne sont pas disponibles dans la feuille de template
-            if contract_type == "CDI" and frais_provision_cdi is not None and frais_provision_cdi > 0 and frais_provision_cdi_value is None:
-                frais_provision_cdi_value = ws.range("J9").value * tjm * jours_travailles  # Calcul approximatif
-                logger.info(f"Calculated frais_provision_cdi_value: {frais_provision_cdi_value}")
-        except Exception as e:
-            logger.warning(f"Error accessing alternative cells: {e}")
             # Continue with what we have
         
         try:
@@ -395,17 +449,23 @@ async def convert(
             "tjm": tjm,
             "brut_mensuel": brut_mensuel,
             "net_mensuel": net_mensuel,
+            "net_apres_impot": net_apres_impot,
             "frais_gestion": frais_gestion,
             "facturation_client": facturation_client,
+            "total_autre_element_paye": total_autre_element_paye,
+            "remboursement_frais_fonctionnement": remboursement_frais,
+            "tickets_restaurant_remis": tickets_restaurant_remis,
             "autres_details": {
                 "ticket_restaurant_contribution": ticket_contribution,
                 "mutuelle_contribution": mutuelle_contribution,
             }
         }
         
-        # Ajouter les frais de provision CDI au résultat si applicable
-        if contract_type == "CDI" and frais_provision_cdi is not None and frais_provision_cdi > 0 and frais_provision_cdi_value is not None:
-            result["autres_details"]["frais_provision_cdi"] = frais_provision_cdi_value
+        # Ajouter les frais de provision selon le type de contrat
+        if frais_provision_type == "cdi" and frais_provision_value is not None:
+            result["autres_details"]["frais_provision_cdi"] = frais_provision_value
+        elif frais_provision_type == "cdd" and frais_provision_value is not None:
+            result["autres_details"]["frais_provision_cdd"] = frais_provision_value
         
         logger.info(f"Final result: {result}")
         return result
@@ -447,18 +507,39 @@ def fallback_convert(
     tjm: Optional[float] = Query(500),
     jours_travailles: Optional[int] = Query(18),
     contract_type: Optional[str] = Query("CDI"),
-    frais_provision_cdi: Optional[float] = Query(10),  # Nouveau paramètre
+    frais_provision_cdi: Optional[float] = Query(None),
+    frais_provision_cdd: Optional[float] = Query(None),
     frais_gestion: Optional[float] = Query(0),
+    frais_fonctionnement: Optional[float] = Query(0),
     ticket_restaurant: Optional[bool] = Query(False),
-    mutuelle: Optional[bool] = Query(False)
+    mutuelle: Optional[bool] = Query(False),
+    taux_imposition: Optional[float] = Query(11.0)
 ):
     """Fallback endpoint that returns dummy data when Excel fails"""
+    
+    # Calcul du net mensuel (approximation)
+    brut_mensuel = 7500.0
+    net_mensuel = 5250.0
+    
+    # Calcul du net après impôt (approximation)
+    net_apres_impot = net_mensuel * (1 - taux_imposition / 100)
+    
+    # Calcul des remboursements - utiliser directement la valeur fournie
+    remboursement_frais = frais_fonctionnement * 100
+    
+    # Tickets restaurant remis - valeur fixe selon si coché ou non
+    tickets_restaurant_remis = 198 if ticket_restaurant else 0
+    
     result = {
         "tjm": tjm,
-        "brut_mensuel": 7500.0,
-        "net_mensuel": 5250.0,
+        "brut_mensuel": brut_mensuel,
+        "net_mensuel": net_mensuel,
+        "net_apres_impot": net_apres_impot,
         "frais_gestion": 750.0,
-        "facturation_client": tjm * jours_travailles,  # Ajout de la facturation client
+        "facturation_client": tjm * jours_travailles,
+        "total_autre_element_paye": 250.0,
+        "remboursement_frais_fonctionnement": remboursement_frais,
+        "tickets_restaurant_remis": tickets_restaurant_remis,
         "autres_details": {
             "ticket_restaurant_contribution": 198 if ticket_restaurant else 0,
             "mutuelle_contribution": 50 if mutuelle else 0,
@@ -466,9 +547,12 @@ def fallback_convert(
         "note": "This is fallback data. Excel automation failed."
     }
     
-    # Ajouter les frais de provision CDI au résultat si applicable
+    # Ajouter les frais de provision selon le type de contrat
     if contract_type == "CDI" and frais_provision_cdi is not None and frais_provision_cdi > 0:
-        provision_amount = (tjm * jours_travailles * (frais_provision_cdi / 100))
+        provision_amount = (tjm * jours_travailles * frais_provision_cdi)
         result["autres_details"]["frais_provision_cdi"] = provision_amount
+    elif contract_type == "CDD" and frais_provision_cdd is not None and frais_provision_cdd > 0:
+        provision_amount = (tjm * jours_travailles * frais_provision_cdd)
+        result["autres_details"]["frais_provision_cdd"] = provision_amount
     
     return result

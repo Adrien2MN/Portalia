@@ -18,15 +18,19 @@
     <option value="CDD">CDD</option>
   </select>
   
-  <!-- Frais de provision CDI supprimé -->
+  <!-- Congés Payés (nouveau) -->
+  <div class="checkbox-container">
+    <label for="congesPayes">Congés Payés:</label>
+    <input id="congesPayes" type="checkbox" [(ngModel)]="parameters.congesPayes" />
+  </div>
   
   <!-- Frais de Fonctionnement -->
   <div>
-    <label for="fraisFonctionnement">Frais de Fonctionnement :</label>
-    <input id="fraisFonctionnement" type="number" [(ngModel)]="parameters.fraisFonctionnement" min="0" max="10000" />
+    <label for="fraisFonctionnement">Frais de Fonctionnement:</label>
+    <input id="fraisFonctionnement" type="number" [(ngModel)]="parameters.fraisFonctionnement" min="0" max="100" />
   </div>
   
-  <!-- Frais de Gestion (nouveau) -->
+  <!-- Frais de Gestion -->
   <div>
     <label for="fraisGestion">Frais de Gestion (%):</label>
     <input id="fraisGestion" type="number" [(ngModel)]="parameters.fraisGestion" min="0" max="100" />
@@ -42,6 +46,12 @@
   <div class="checkbox-container">
     <label for="mutuelle">Mutuelle:</label>
     <input id="mutuelle" type="checkbox" [(ngModel)]="parameters.mutuelle" />
+  </div>
+  
+  <!-- Taux d'imposition (nouveau) -->
+  <div>
+    <label for="tauxImposition">Taux d'Imposition (%):</label>
+    <input id="tauxImposition" type="number" [(ngModel)]="parameters.tauxImposition" min="0" max="100" />
   </div>
   
   <!-- Code Commune -->
@@ -86,7 +96,7 @@
     </div>
     
     <div class="result-item">
-      <span class="result-label">Facturation Client:</span>
+      <span class="result-label">Chiffre d'Affaire:</span>
       <span class="result-value">{{ formatCurrency(result.facturation_client) }}</span>
     </div>
     
@@ -100,18 +110,29 @@
       <span class="result-value">{{ formatCurrency(result.net_mensuel) }}</span>
     </div>
     
-    <!-- Frais de Gestion supprimé -->
-    
-    <div *ngIf="parameters.ticketRestaurant" class="result-item">
-      <span class="result-label">Contribution Ticket Restaurant:</span>
-      <span class="result-value">{{ formatCurrency(result.autres_details?.ticket_restaurant_contribution) }}</span>
+    <!-- Nouveau: Salaire Net Après Impôt -->
+    <div class="result-item">
+      <span class="result-label">Salaire Net Après Impôt:</span>
+      <span class="result-value">{{ formatCurrency(result.net_apres_impot) }}</span>
     </div>
     
-    <div *ngIf="parameters.mutuelle" class="result-item">
-      <span class="result-label">Contribution Mutuelle:</span>
-      <span class="result-value">{{ formatCurrency(result.autres_details?.mutuelle_contribution) }}</span>
+    <!-- Nouveau: Total Autre Élément Payé -->
+    <div class="result-item">
+      <span class="result-label">Total Autre Élément Payé:</span>
+      <span class="result-value">{{ formatCurrency(result.total_autre_element_paye) }}</span>
     </div>
     
-   
+    <!-- Nouveau: Remboursement Frais de Fonctionnement -->
+    <div class="result-item">
+      <span class="result-label">Remboursement Frais de Fonctionnement:</span>
+      <span class="result-value">{{ formatCurrency(result.remboursement_frais_fonctionnement) }}</span>
+    </div>
+    
+    <!-- Nouveau: Tickets Restaurant Remis -->
+    <div class="result-item">
+      <span class="result-label">Tickets Restaurant Remis:</span>
+      <span class="result-value">{{ formatCurrency(result.tickets_restaurant_remis) }}</span>
+    </div>
+    
   </div>
 </div>

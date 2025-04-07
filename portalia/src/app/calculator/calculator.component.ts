@@ -5,12 +5,17 @@ interface CalculationResult {
   tjm: number;
   brut_mensuel: number;
   net_mensuel: number;
+  net_apres_impot?: number; // Nouveau champ pour le net après impôt
   frais_gestion: number;
-  facturation_client?: number; // Ajout de la facturation client
+  facturation_client?: number; // Renommé en frontend en "Chiffre d'affaire"
+  total_autre_element_paye?: number; // Nouveau champ pour le total des autres éléments payés
+  remboursement_frais_fonctionnement?: number; // Nouveau champ pour les frais de fonctionnement
+  tickets_restaurant_remis?: number; // Nouveau champ pour les tickets restaurant remis
   autres_details: {
     ticket_restaurant_contribution: number;
     mutuelle_contribution: number;
     frais_provision_cdi?: number;
+    frais_provision_cdd?: number; // Nouveau champ pour provision CDD
   };
 }
 
@@ -30,6 +35,8 @@ export class CalculatorComponent implements OnInit {
     fraisGestion: 0, // Paramètre pour la cellule J7
     ticketRestaurant: false,
     mutuelle: false,
+    congesPayes: true, // Nouveau: congés payés activés par défaut
+    tauxImposition: 11, // Nouveau: taux d'imposition par défaut à 11%
     codeCommune: ''
   };
 
@@ -100,9 +107,13 @@ export class CalculatorComponent implements OnInit {
       .set('frais_fonctionnement', (this.parameters.fraisFonctionnement / 100).toString())
       .set('frais_gestion', (this.parameters.fraisGestion / 100).toString());
     
-    // Paramètre frais_provision_cdi automatique à 0.1 (10%) pour CDI
-    if (this.parameters.contractType === 'CDI') {
-      params = params.set('frais_provision_cdi', '0.1');
+    // Paramètre frais_provision selon type de contrat et congés payés
+    if (this.parameters.congesPayes) {
+      if (this.parameters.contractType === 'CDI') {
+        params = params.set('frais_provision_cdi', '0.1'); // 10% pour CDI avec congés payés
+      } else if (this.parameters.contractType === 'CDD') {
+        params = params.set('frais_provision_cdd', '0.1'); // 10% pour CDD avec congés payés
+      }
     }
     
     // Only add optional parameters if they have values
@@ -117,6 +128,9 @@ export class CalculatorComponent implements OnInit {
     } else {
       params = params.set('mutuelle', 'false'); 
     }
+    
+    // Nouveau: ajouter le taux d'imposition
+    params = params.set('taux_imposition', this.parameters.tauxImposition.toString());
     
     // Always set code commune
     params = params.set('code_commune', this.parameters.codeCommune);
@@ -164,6 +178,8 @@ export class CalculatorComponent implements OnInit {
       fraisGestion: 0,
       ticketRestaurant: false,
       mutuelle: false,
+      congesPayes: true,
+      tauxImposition: 11,
       codeCommune: ''
     };
     this.result = null;
